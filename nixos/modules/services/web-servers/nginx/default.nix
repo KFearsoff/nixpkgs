@@ -642,7 +642,7 @@ in
         defaultText = literalExpression "pkgs.nginxStable";
         type = types.package;
         apply = p: p.override {
-          modules = lib.unique (p.modules ++ cfg.additionalModules);
+          modules = lib.unique (p.modules ++ cfg.additionalModules ++ cfg.additionalDynamicModules);
         };
         description = lib.mdDoc ''
           Nginx package to use. This defaults to the stable version. Note
@@ -657,7 +657,19 @@ in
         example = literalExpression "[ pkgs.nginxModules.echo ]";
         description = lib.mdDoc ''
           Additional [third-party nginx modules](https://www.nginx.com/resources/wiki/modules/)
-          to install. Packaged modules are available in `pkgs.nginxModules`.
+          to install. Packaged modules are available in `pkgs.nginxModules`. They are linked
+          statically (not all modules support this, see documentation for yours).
+        '';
+      };
+
+      additionalDynamicModules = mkOption {
+        default = [];
+        type = types.listOf (types.attrsOf types.anything);
+        example = literalExpression "[ pkgs.nginxModules.echo ]";
+        description = lib.mdDoc ''
+          Additional [third-party nginx modules](https://www.nginx.com/resources/wiki/modules/)
+          to install. Packaged modules are available in `pkgs.nginxModules`. They are linked
+          dynamically (not all modules support this, see documentation for yours).
         '';
       };
 

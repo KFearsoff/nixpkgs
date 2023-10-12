@@ -10,6 +10,7 @@ outer@{ lib, stdenv, fetchurl, fetchpatch, openssl, zlib, pcre, libxml2, libxslt
 , withPerl ? true
 , withSlice ? false
 , modules ? []
+, dynamicModules ? []
 , ...
 }:
 
@@ -35,8 +36,16 @@ let
 
   moduleNames = map (mod: mod.name or (throw "The nginx module with source ${toString mod.src} does not have a `name` attribute. This prevents duplicate module detection and is no longer supported."))
     modules;
+  dynModuleNames = map (mod: mod.name or (throw "The nginx module with source ${toString mod.src} does not have a `name` attribute. This prevents duplicate module detection and is no longer supported."))
+    dynamicModules;
 
   mapModules = attrPath: lib.flip lib.concatMap modules
+    (mod:
+      let supports = mod.supports or (_: true);
+      in
+        if supports nginxVersion then mod.${attrPath} or []
+        else throw "Module at ${toString mod.src} does not support nginx version ${nginxVersion}!");
+  mapDynModules = attrPath: lib.flip lib.concatMap dynamicModules
     (mod:
       let supports = mod.supports or (_: true);
       in
@@ -47,6 +56,8 @@ in
 
 assert lib.assertMsg (lib.unique moduleNames == moduleNames)
   "nginx: duplicate modules: ${lib.concatStringsSep ", " moduleNames}. A common cause for this is that services.nginx.additionalModules adds a module which the nixos module itself already adds.";
+assert lib.assertMsg (lib.unique dynModuleNames == dynModuleNames)
+  "nginx: duplicate modules: ${lib.concatStringsSep ", " dynModuleNames}. A common cause for this is that services.nginx.additionalDynamicModules adds a module which the nixos module itself already adds.";
 
 stdenv.mkDerivation {
   inherit pname version nginxVersion;
@@ -63,7 +74,8 @@ stdenv.mkDerivation {
 
   buildInputs = [ openssl zlib pcre libxml2 libxslt gd geoip perl ]
     ++ buildInputs
-    ++ mapModules "inputs";
+    ++ mapModules "inputs"
+    ++ mapDynModules "inputs";
 
   configureFlags = [
     "--with-http_ssl_module"
@@ -114,7 +126,8 @@ stdenv.mkDerivation {
     ++ lib.optional (withStream && geoip != null) "--with-stream_geoip_module"
     ++ lib.optional (with stdenv.hostPlatform; isLinux || isFreeBSD) "--with-file-aio"
     ++ configureFlags
-    ++ map (mod: "--add-module=${mod.src}") modules;
+    ++ map (mod: "--add-module=${mod.src}") modules
+    ++ map (mod: "--add-dynamic-module=${mod.src}") dynamicModules;
 
   env.NIX_CFLAGS_COMPILE = toString ([
     "-I${libxml2.dev}/include/libxml2"
@@ -154,7 +167,8 @@ stdenv.mkDerivation {
       url = "https://raw.githubusercontent.com/openwrt/packages/c057dfb09c7027287c7862afab965a4cd95293a3/net/nginx/patches/103-sys_nerr.patch";
       sha256 = "0s497x6mkz947aw29wdy073k8dyjq8j99lax1a1mzpikzr4rxlmd";
     })
-  ] ++ mapModules "patches")
+  ] ++ mapModules "patches"
+    ++ mapDynModules "patches")
     ++ extraPatches;
 
   inherit postPatch;
@@ -168,15 +182,17 @@ stdenv.mkDerivation {
     cp -r ${nginx-doc}/* $doc
   '';
 
-  disallowedReferences = map (m: m.src) modules;
+  # This is extremely broken, see https://github.com/NixOS/nixpkgs/issues/182935 for details
+  # disallowedReferences = map (m: m.src) modules;
 
   postInstall =
     let
       noSourceRefs = lib.concatMapStrings (m: "remove-references-to -t ${m.src} $out/sbin/nginx\n") modules;
-    in noSourceRefs + postInstall;
+      noSourceRefsDyn = lib.concatMapStrings (m: "remove-references-to -t ${m.src} $out/sbin/nginx\n") dynamicModules;
+    in noSourceRefs + noSourceRefsDyn + postInstall;
 
   passthru = {
-    inherit modules;
+    inherit modules dynamicModules;
     tests = {
       inherit (nixosTests) nginx nginx-auth nginx-etag nginx-globalredirect nginx-http3 nginx-proxyprotocol nginx-pubhtml nginx-sandbox nginx-sso nginx-status-page;
       variants = lib.recurseIntoAttrs nixosTests.nginx-variants;
@@ -188,7 +204,8 @@ stdenv.mkDerivation {
     description = "A reverse proxy and lightweight webserver";
     homepage    = "http://nginx.org";
     license     = [ licenses.bsd2 ]
-      ++ concatMap (m: m.meta.license) modules;
+      ++ concatMap (m: m.meta.license) modules
+      ++ concatMap (m: m.meta.license) dynamicModules;
     platforms   = platforms.all;
     maintainers = with maintainers; [ fpletz ajs124 raitobezarius ];
   };
