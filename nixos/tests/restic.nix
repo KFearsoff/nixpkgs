@@ -54,13 +54,15 @@ import ./make-test-python.nix (
         {
           services.restic.backups = {
             remotebackup = {
-              inherit passwordFile paths exclude pruneOpts backupPrepareCommand backupCleanupCommand;
+              inherit paths exclude pruneOpts backupPrepareCommand backupCleanupCommand;
+              settings.passwordFile = passwordFile;
               repository = remoteRepository;
               initialize = true;
               timerConfig = null; # has no effect here, just checking that it doesn't break the service
             };
             remote-from-file-backup = {
-              inherit passwordFile exclude pruneOpts;
+              inherit exclude pruneOpts;
+              settings.passwordFile = passwordFile;
               initialize = true;
               repositoryFile = pkgs.writeText "repositoryFile" remoteFromFileRepository;
               paths = [
@@ -72,18 +74,21 @@ import ./make-test-python.nix (
               '';
             };
             inhibit-test = {
-              inherit passwordFile paths exclude pruneOpts;
+              inherit paths exclude pruneOpts;
+              settings.passwordFile = passwordFile;
               repository = remoteInhibitTestRepository;
               initialize = true;
               inhibitsSleep = true;
             };
             remote-noinit-backup = {
-              inherit passwordFile exclude pruneOpts paths;
+              inherit exclude pruneOpts paths;
+              settings.passwordFile = passwordFile;
               initialize = false;
               repository = remoteNoInitRepository;
             };
             rclonebackup = {
-              inherit passwordFile paths exclude pruneOpts;
+              inherit paths exclude pruneOpts;
+              settings.passwordFile = passwordFile;
               initialize = true;
               repository = rcloneRepository;
               rcloneConfig = {
@@ -98,12 +103,13 @@ import ./make-test-python.nix (
               '';
             };
             remoteprune = {
-              inherit passwordFile;
+              settings.passwordFile = passwordFile;
               repository = remoteRepository;
               pruneOpts = [ "--keep-last 1" ];
             };
             custompackage = {
-              inherit passwordFile paths;
+              inherit paths;
+              settings.passwordFile = passwordFile;
               repository = "some-fake-repository";
               package = pkgs.writeShellScriptBin "restic" ''
                 echo "$@" >> /root/fake-restic.log;
