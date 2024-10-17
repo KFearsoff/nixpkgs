@@ -2,6 +2,29 @@
 let
   # Type for a valid systemd unit option. Needed for correctly passing "timerConfig" to "systemd.timers"
   inherit (utils.systemdUtils.unitOptions) unitOption;
+  passwordFileBase = lib.mkOption {
+    type = lib.types.str;
+    default = "";
+    description = ''
+      Read the repository password from a file.
+    '';
+    example = "/etc/nixos/restic-password";
+  };
+  repositoryBase = lib.mkOption {
+    type = with lib.types; nullOr str;
+    default = null;
+    description = ''
+      repository to backup to.
+    '';
+    example = "sftp:backup@192.168.1.100:/backups/${name}";
+  };
+  repositoryFileBase = lib.mkOption {
+    type = with lib.types; nullOr path;
+    default = null;
+    description = ''
+      Path to the file containing the repository location to backup to.
+    '';
+  };
 in
 {
   options.services.restic.backups = lib.mkOption {
@@ -10,11 +33,10 @@ in
     '';
     type = lib.types.attrsOf (lib.types.submodule ({ name, ... }: {
       options = {
-        passwordFile = lib.mkOption {
-          type = lib.types.str;
-          default = "";
-          internal = true;
-        };
+        passwordFile = passwordFileBase // { internal = true; };
+        repository = repositoryBase // { internal = true; };
+        repositoryFile = repositoryFileBase // { internal = true; };
+
         environmentFile = lib.mkOption {
           type = with lib.types; nullOr str;
           default = null;
@@ -83,25 +105,6 @@ in
           example = true;
           description = ''
             Prevents the system from sleeping while backing up.
-          '';
-        };
-
-        repository = lib.mkOption {
-          type = with lib.types; nullOr str;
-          default = null;
-          internal = true;
-          description = ''
-            repository to backup to.
-          '';
-          example = "sftp:backup@192.168.1.100:/backups/${name}";
-        };
-
-        repositoryFile = lib.mkOption {
-          type = with lib.types; nullOr path;
-          default = null;
-          internal = true;
-          description = ''
-            Path to the file containing the repository location to backup to.
           '';
         };
 
@@ -279,31 +282,9 @@ in
             freeformType = with lib.types; attrsOf str;
 
             options = {
-              RESTIC_PASSWORD_FILE = lib.mkOption {
-                type = lib.types.str;
-                default = "";
-                description = ''
-                  Read the repository password from a file.
-                '';
-                example = "/etc/nixos/restic-password";
-              };
-
-              RESTIC_REPOSITORY = lib.mkOption {
-                type = with lib.types; nullOr str;
-                default = null;
-                description = ''
-                  repository to backup to.
-                '';
-                example = "sftp:backup@192.168.1.100:/backups/${name}";
-              };
-
-              RESTIC_REPOSITORY_FILE = lib.mkOption {
-                type = with lib.types; nullOr path;
-                default = null;
-                description = ''
-                  Path to the file containing the repository location to backup to.
-                '';
-              };
+              RESTIC_PASSWORD_FILE = passwordFileBase;
+              RESTIC_REPOSITORY = repositoryBase;
+              RESTIC_REPOSITORY_FILE = repositoryFileBase;
 
               RESTIC_CACHE_DIR = lib.mkOption {
                 type = with lib.types; nullOr path;
