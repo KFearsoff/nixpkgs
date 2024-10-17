@@ -66,9 +66,9 @@ import ./make-test-python.nix (
               inherit exclude pruneOpts;
               settings = {
                 RESTIC_PASSWORD_FILE = passwordFile;
+                RESTIC_REPOSITORY_FILE = pkgs.writeText "repositoryFile" remoteFromFileRepository;
               };
               initialize = true;
-              repositoryFile = pkgs.writeText "repositoryFile" remoteFromFileRepository;
               paths = [
                 "/opt/a_dir/a_file"
                 "/opt/a_dir/a_file_2"
