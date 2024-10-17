@@ -16,7 +16,7 @@ let
     description = ''
       repository to backup to.
     '';
-    example = "sftp:backup@192.168.1.100:/backups/${name}";
+    example = "sftp:backup@192.168.1.100:/backups/my-backup";
   };
   repositoryFileBase = lib.mkOption {
     type = with lib.types; nullOr path;
@@ -354,7 +354,7 @@ in
   };
 
   config = {
-    assertions = 
+    assertions =
     (lib.mapAttrsToList (n: v: {
       assertion = (v.settings.RESTIC_REPOSITORY == null) != (v.RESTIC_REPOSITORY_FILE == null);
       message = "services.restic.backups.${n}: exactly one of RESTIC_REPOSITORY or RESTIC_REPOSITORY_FILE should be set";
