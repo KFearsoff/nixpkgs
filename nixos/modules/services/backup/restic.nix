@@ -89,6 +89,7 @@ in
         repository = lib.mkOption {
           type = with lib.types; nullOr str;
           default = null;
+          internal = true;
           description = ''
             repository to backup to.
           '';
@@ -276,13 +277,24 @@ in
           type = lib.types.submodule {
             freeformType = with lib.types; attrsOf str;
 
-            options.RESTIC_PASSWORD_FILE = lib.mkOption {
-              type = lib.types.str;
-              default = "";
-              description = ''
-                Read the repository password from a file.
-              '';
-              example = "/etc/nixos/restic-password";
+            options = {
+              RESTIC_PASSWORD_FILE = lib.mkOption {
+                type = lib.types.str;
+                default = "";
+                description = ''
+                  Read the repository password from a file.
+                '';
+                example = "/etc/nixos/restic-password";
+              };
+
+              RESTIC_REPOSITORY = lib.mkOption {
+                type = with lib.types; nullOr str;
+                default = null;
+                description = ''
+                  repository to backup to.
+                '';
+                example = "sftp:backup@192.168.1.100:/backups/${name}";
+              };
             };
           };
           example = lib.literalExpression ''
@@ -295,16 +307,16 @@ in
       localbackup = {
         paths = [ "/home" ];
         exclude = [ "/home/*/.cache" ];
-        repository = "/mnt/backup-hdd";
         initialize = true;
         settings = {
+          RESTIC_REPOSITORY = "/mnt/backup-hdd";
           RESTIC_PASSWORD_FILE = "/etc/nixos/secrets/restic-password";
         };
       };
       remotebackup = {
         paths = [ "/home" ];
-        repository = "sftp:backup@host:/backups/home";
         settings = {
+          RESTIC_REPOSITORY = "sftp:backup@host:/backups/home";
           RESTIC_PASSWORD_FILE = "/etc/nixos/secrets/restic-password";
         };
         extraOptions = [
@@ -327,6 +339,10 @@ in
     (lib.mapAttrsToList (n: v: {
       assertion = (v.passwordFile == "");
       message = "services.restic.backups.${n}.passwordFile: option was renamed to services.restic.backups.${n}.settings.RESTIC_PASSWORD_FILE";
+    }) config.services.restic.backups) ++
+    (lib.mapAttrsToList (n: v: {
+      assertion = (v.repository == "");
+      message = "services.restic.backups.${n}.repository: option was renamed to services.restic.backups.${n}.settings.RESTIC_REPOSITORY";
     }) config.services.restic.backups);
     systemd.services =
       lib.mapAttrs'
@@ -351,7 +367,7 @@ in
                 (resticCmd + " check " + (lib.concatStringsSep " " backup.checkOpts))
             ];
             # Helper functions for rclone remotes
-            rcloneRemoteName = builtins.elemAt (lib.splitString ":" backup.repository) 1;
+            rcloneRemoteName = builtins.elemAt (lib.splitString ":" backup.settings.RESTIC_REPOSITORY) 1;
             rcloneAttrToOpt = v: "RCLONE_" + lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] v);
             rcloneAttrToConf = v: "RCLONE_CONFIG_" + lib.toUpper (rcloneRemoteName + "_" + v);
             toRcloneVal = v: if lib.isBool v then lib.boolToString v else v;
@@ -361,7 +377,7 @@ in
               # not %C, because that wouldn't work in the wrapper script
               RESTIC_CACHE_DIR = "/var/cache/restic-backups-${name}";
               RESTIC_PASSWORD_FILE = backup.settings.RESTIC_PASSWORD_FILE;
-              RESTIC_REPOSITORY = backup.repository;
+              RESTIC_REPOSITORY = backup.settings.RESTIC_REPOSITORY;
               RESTIC_REPOSITORY_FILE = backup.repositoryFile;
             } // lib.optionalAttrs (backup.rcloneOptions != null) (lib.mapAttrs'
               (name: value:
