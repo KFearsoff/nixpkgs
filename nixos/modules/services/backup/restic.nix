@@ -346,6 +346,7 @@ in
       assertion = (v.repositoryFile == null);
       message = "services.restic.backups.${n}.repositoryFile: option was renamed to services.restic.backups.${n}.settings.RESTIC_REPOSITORY_FILE";
     }) config.services.restic.backups);
+
     systemd.services =
       lib.mapAttrs'
         (name: backup:
@@ -375,9 +376,8 @@ in
             toRcloneVal = v: if lib.isBool v then lib.boolToString v else v;
           in
           lib.nameValuePair "restic-backups-${name}" ({
-            environment = {
-              inherit (backup.settings) RESTIC_CACHE_DIR RESTIC_PASSWORD_FILE RESTIC_REPOSITORY RESTIC_REPOSITORY_FILE;
-            } // lib.optionalAttrs (backup.rcloneOptions != null) (lib.mapAttrs'
+            environment = backup.settings
+              // lib.optionalAttrs (backup.rcloneOptions != null) (lib.mapAttrs'
               (name: value:
                 lib.nameValuePair (rcloneAttrToOpt name) (toRcloneVal value)
               )
