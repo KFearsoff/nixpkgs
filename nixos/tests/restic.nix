@@ -102,16 +102,16 @@ import ./make-test-python.nix (
                 RESTIC_REPOSITORY = rcloneRepository;
               };
               initialize = true;
-              rcloneConfig = {
-                type = "local";
-                one_file_system = true;
+              rcloneSettings = {
+                RCLONE_TYPE = "local";
+                RCLONE_ONE_FILE_SYSTEM = "true";
+                # This gets overridden by rcloneSettings.type
+                RCLONE_CONFIG = pkgs.writeText "rclone.conf" ''
+                  [local]
+                  type=ftp
+                '';
               };
 
-              # This gets overridden by rcloneConfig.type
-              rcloneConfigFile = pkgs.writeText "rclone.conf" ''
-                [local]
-                type=ftp
-              '';
             };
             remoteprune = {
               settings = {
@@ -134,8 +134,6 @@ import ./make-test-python.nix (
               checkOpts = [ "--some-check-option" ];
             };
           };
-
-          environment.sessionVariables.RCLONE_CONFIG_LOCAL_TYPE = "local";
         };
     };
 

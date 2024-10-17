@@ -49,10 +49,22 @@ in
         rcloneSettings = lib.mkOption {
           description = ''
             Rclone settings. They are provided as environment variables. They should be provided in upper snake
-            case (e.g. {env}`RESTIC_SKIP_LINKS`). See <https://rclone.org/docs/#options> for supported options.
+            case (e.g. {env}`RCLONE_SKIP_LINKS`). See <https://rclone.org/docs/#options> for supported options.
+            Restic will automatically supply the remote type and name for you. To provide secrets to the backend,
+            it's recommended to create rclone config file yourself, and use {env}`RCLONE_CONFIG` option to point
+            to it. It is also recommended to use a separate config file if you care about case-sensitivity for
+            your remote name.
           '';
           type = lib.types.submodule {
             freeformType = with lib.types; attrsOf str;
+          };
+          example = {
+            RCLONE_BWLIMIT = "10M";
+            RCLONE_DRIVE_USE_TRASH = "true";
+            RCLONE_HARD_DELETE = "true";
+            RCLONE_S3_PROVIDER = "AWS";
+            RCLONE_CONFIG_MYS3_ACCESS_KEY_ID = "XXX";
+            RCLONE_CONFIG = "/my/config/file";
           };
         };
 
@@ -77,6 +89,7 @@ in
         rcloneConfig = lib.mkOption {
           type = with lib.types; nullOr (attrsOf (oneOf [ str bool ]));
           default = null;
+          internal = true;
           description = ''
             Configuration for the rclone remote being used for backup.
             See the remote's specific options under rclone's docs at
@@ -101,6 +114,7 @@ in
         rcloneConfigFile = lib.mkOption {
           type = with lib.types; nullOr path;
           default = null;
+          internal = true;
           description = ''
             Path to the file containing rclone configuration. This file
             must contain configuration for the remote specified in this backup
@@ -360,6 +374,14 @@ in
     (lib.mapAttrsToList (n: v: {
       assertion = (v.rcloneOptions == null);
       message = "services.restic.backups.${n}.rcloneOptions: option was removed. Use services.restic.backups.${n}.rcloneSettings instead";
+    }) config.services.restic.backups) ++
+    (lib.mapAttrsToList (n: v: {
+      assertion = (v.rcloneConfig == null);
+      message = "services.restic.backups.${n}.rcloneConfig: option was removed. Use services.restic.backups.${n}.rcloneSettings instead";
+    }) config.services.restic.backups) ++
+    (lib.mapAttrsToList (n: v: {
+      assertion = (v.rcloneConfigFile == null);
+      message = "services.restic.backups.${n}.rcloneConfigFile: option was removed. Use services.restic.backups.${n}.rcloneSettings.RCLONE_CONFIG instead";
     }) config.services.restic.backups);
 
     systemd.services =
@@ -384,22 +406,10 @@ in
             checkCmd = lib.optionals backup.runCheck [
                 (resticCmd + " check " + (lib.concatStringsSep " " backup.checkOpts))
             ];
-            # Helper functions for rclone remotes
-            rcloneRemoteName = builtins.elemAt (lib.splitString ":" backup.settings.RESTIC_REPOSITORY) 1;
-            rcloneAttrToOpt = v: "RCLONE_" + lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] v);
-            rcloneAttrToConf = v: "RCLONE_CONFIG_" + lib.toUpper (rcloneRemoteName + "_" + v);
-            toRcloneVal = v: if lib.isBool v then lib.boolToString v else v;
           in
           lib.nameValuePair "restic-backups-${name}" ({
             environment = backup.settings
-              // (lib.optionalAttrs (backup.rcloneSettings != {}) backup.rcloneSettings)
-              // lib.optionalAttrs (backup.rcloneConfigFile != null) {
-              RCLONE_CONFIG = backup.rcloneConfigFile;
-            } // lib.optionalAttrs (backup.rcloneConfig != null) (lib.mapAttrs'
-              (name: value:
-                lib.nameValuePair (rcloneAttrToConf name) (toRcloneVal value)
-              )
-              backup.rcloneConfig);
+              // (lib.optionalAttrs (backup.rcloneSettings != {}) backup.rcloneSettings);
             path = [ config.programs.ssh.package ];
             restartIfChanged = false;
             wants = [ "network-online.target" ];
