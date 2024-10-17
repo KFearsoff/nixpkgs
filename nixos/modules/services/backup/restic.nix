@@ -358,11 +358,11 @@ in
       message = "services.restic.backups.${n}.passwordFile: option was renamed to services.restic.backups.${n}.settings.RESTIC_PASSWORD_FILE";
     }) config.services.restic.backups) ++
     (lib.mapAttrsToList (n: v: {
-      assertion = (v.repository == "");
+      assertion = (v.repository == null);
       message = "services.restic.backups.${n}.repository: option was renamed to services.restic.backups.${n}.settings.RESTIC_REPOSITORY";
     }) config.services.restic.backups) ++
     (lib.mapAttrsToList (n: v: {
-      assertion = (v.repository == "");
+      assertion = (v.repositoryFile == null);
       message = "services.restic.backups.${n}.repositoryFile: option was renamed to services.restic.backups.${n}.settings.RESTIC_REPOSITORY_FILE";
     }) config.services.restic.backups);
     systemd.services =
@@ -395,11 +395,7 @@ in
           in
           lib.nameValuePair "restic-backups-${name}" ({
             environment = {
-              # not %C, because that wouldn't work in the wrapper script
-              RESTIC_CACHE_DIR = backup.settings.RESTIC_CACHE_DIR;
-              RESTIC_PASSWORD_FILE = backup.settings.RESTIC_PASSWORD_FILE;
-              RESTIC_REPOSITORY = backup.settings.RESTIC_REPOSITORY;
-              RESTIC_REPOSITORY_FILE = backup.settings.RESTIC_REPOSITORY_FILE;
+              inherit (backup.settings) RESTIC_CACHE_DIR RESTIC_PASSWORD_FILE RESTIC_REPOSITORY RESTIC_REPOSITORY_FILE;
             } // lib.optionalAttrs (backup.rcloneOptions != null) (lib.mapAttrs'
               (name: value:
                 lib.nameValuePair (rcloneAttrToOpt name) (toRcloneVal value)
