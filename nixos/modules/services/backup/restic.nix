@@ -46,29 +46,6 @@ in
           '';
         };
 
-        rcloneSettings = lib.mkOption {
-          description = ''
-            Rclone settings. They are provided as environment variables. They should be provided in upper snake
-            case (e.g. {env}`RCLONE_SKIP_LINKS`). See <https://rclone.org/docs/#options> for supported options.
-            Restic will automatically supply the remote type and name for you. To provide secrets to the backend,
-            it's recommended to create rclone config file yourself, and use {env}`RCLONE_CONFIG` option to point
-            to it. It is also recommended to use a separate config file if you care about case-sensitivity for
-            your remote name.
-          '';
-          type = lib.types.submodule {
-            freeformType = with lib.types; attrsOf str;
-          };
-          default = {};
-          example = {
-            RCLONE_BWLIMIT = "10M";
-            RCLONE_DRIVE_USE_TRASH = "true";
-            RCLONE_HARD_DELETE = "true";
-            RCLONE_S3_PROVIDER = "AWS";
-            RCLONE_CONFIG_MYS3_ACCESS_KEY_ID = "XXX";
-            RCLONE_CONFIG = "/my/config/file";
-          };
-        };
-
         rcloneOptions = lib.mkOption {
           type = with lib.types; nullOr (attrsOf (oneOf [ str bool ]));
           default = null;
@@ -303,6 +280,13 @@ in
             Restic settings. They are provided as environment variables. They should be provided in upper snake
             case (e.g. {env}`RESTIC_PASSWORD_FILE`). See
             <https://restic.readthedocs.io/en/stable/040_backup.html#environment-variables> for supported options.
+
+            This option can also take rclone settings, also as environment variables. They should be provided in
+            upper snake case (e.g. {env}`RCLONE_SKIP_LINKS`). See <https://rclone.org/docs/#options> for supported
+            options. Restic will automatically supply the remote type and name for you. To provide secrets to the
+            backend, it's recommended to create rclone config file yourself, and use {env}`RCLONE_CONFIG` option
+            to point to it. It is also recommended to use a separate config file if you care about
+            case-sensitivity for your remote name.
           '';
           default = {};
           type = lib.types.submodule {
@@ -323,6 +307,15 @@ in
             };
           };
           example = lib.literalExpression ''
+            RESTIC_PASSWORD_FILE = "/secrets/password-file";
+            RESTIC_REPOSITORY = "s3:s3.us-east-1.amazonaws.com/bucket_name/restic";
+            AWS_ACCESS_KEY_ID = "XXXX";
+            AWS_SECRET_ACCESS_KEY = "YYYY";
+            RCLONE_BWLIMIT = "10M";
+            RCLONE_HARD_DELETE = "true";
+            # RCLONE_S3_PROVIDER = "AWS";
+            # RCLONE_CONFIG_MYS3_ACCESS_KEY_ID = "XXXX";
+            # RCLONE_CONFIG = "/my/config/file";
           '';
         };
       };
@@ -375,15 +368,15 @@ in
     }) config.services.restic.backups) ++
     (lib.mapAttrsToList (n: v: {
       assertion = (v.rcloneOptions == null);
-      message = "services.restic.backups.${n}.rcloneOptions: option was removed. Use services.restic.backups.${n}.rcloneSettings instead";
+      message = "services.restic.backups.${n}.rcloneOptions: option was removed. Use services.restic.backups.${n}.settings instead";
     }) config.services.restic.backups) ++
     (lib.mapAttrsToList (n: v: {
       assertion = (v.rcloneConfig == null);
-      message = "services.restic.backups.${n}.rcloneConfig: option was removed. Use services.restic.backups.${n}.rcloneSettings instead";
+      message = "services.restic.backups.${n}.rcloneConfig: option was removed. Use services.restic.backups.${n}.settings instead";
     }) config.services.restic.backups) ++
     (lib.mapAttrsToList (n: v: {
       assertion = (v.rcloneConfigFile == null);
-      message = "services.restic.backups.${n}.rcloneConfigFile: option was removed. Use services.restic.backups.${n}.rcloneSettings.RCLONE_CONFIG instead";
+      message = "services.restic.backups.${n}.rcloneConfigFile: option was removed. Use services.restic.backups.${n}.settings.RCLONE_CONFIG instead";
     }) config.services.restic.backups);
 
     systemd.services =
@@ -410,8 +403,7 @@ in
             ];
           in
           lib.nameValuePair "restic-backups-${name}" ({
-            environment = backup.settings
-              // (lib.optionalAttrs (backup.rcloneSettings != {}) backup.rcloneSettings);
+            environment = backup.settings;
             path = [ config.programs.ssh.package ];
             restartIfChanged = false;
             wants = [ "network-online.target" ];
