@@ -58,6 +58,7 @@ in
           type = lib.types.submodule {
             freeformType = with lib.types; attrsOf str;
           };
+          default = {};
           example = {
             RCLONE_BWLIMIT = "10M";
             RCLONE_DRIVE_USE_TRASH = "true";
@@ -303,6 +304,7 @@ in
             case (e.g. {env}`RESTIC_PASSWORD_FILE`). See
             <https://restic.readthedocs.io/en/stable/040_backup.html#environment-variables> for supported options.
           '';
+          default = {};
           type = lib.types.submodule {
             freeformType = with lib.types; attrsOf str;
 
@@ -356,8 +358,8 @@ in
   config = {
     assertions =
     (lib.mapAttrsToList (n: v: {
-      assertion = (v.settings.RESTIC_REPOSITORY == null) != (v.RESTIC_REPOSITORY_FILE == null);
-      message = "services.restic.backups.${n}: exactly one of RESTIC_REPOSITORY or RESTIC_REPOSITORY_FILE should be set";
+      assertion = (v.settings.RESTIC_REPOSITORY == null) != (v.settings.RESTIC_REPOSITORY_FILE == null);
+      message = "services.restic.backups.${n}.settings: exactly one of RESTIC_REPOSITORY or RESTIC_REPOSITORY_FILE should be set";
     }) config.services.restic.backups) ++
     (lib.mapAttrsToList (n: v: {
       assertion = (v.passwordFile == "");
